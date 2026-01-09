@@ -1,5 +1,5 @@
 import { log } from "interactivity-api";
 
 log("TLA module D (before await)", "tla");
-await Promise.resolve();
+await new Promise((r) => setTimeout(r, 1));
 log("TLA module D (after await)", "tla");
