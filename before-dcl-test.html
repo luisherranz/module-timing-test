@@ -66,6 +66,9 @@
     }
   </script>
 
+  <!-- Delay module: imports lodash to slow down DOMContentLoaded -->
+  <script type="module" src="./delay-module.js"></script>
+
   <script>
     // Detect browser early
     const ua = navigator.userAgent;
@@ -83,13 +86,13 @@
   <div id="info">
     <strong>Browser:</strong> <span id="browser"></span><br>
     <strong>Test:</strong> Load modules BEFORE <span style="color:#e74c3c">DOMContentLoaded</span> fires<br>
-    <strong>Goal:</strong> Verify <code>domContentLoadedEventEnd === 0</code> and detection waits for DCL<br>
+    <strong>Goal:</strong> Verify <code>domContentLoadedEventStart === 0</code> and detection waits for DCL<br>
     <a href="./index.html" style="color:#3498db">Sync test</a> |
     <a href="./after-dcl-test.html" style="color:#2ecc71">After DCL test</a>
   </div>
   <div id="timing-info">
     <div><span class="label">readyState at import:</span> <span id="ready-state" class="value">—</span></div>
-    <div><span class="label">domContentLoadedEventEnd:</span> <span id="dcl-end" class="value">—</span></div>
+    <div><span class="label">domContentLoadedEventStart:</span> <span id="dcl-start" class="value">—</span></div>
     <div><span class="label">Detection result:</span> <span id="detection-result" class="value">—</span></div>
   </div>
   <div id="log"></div>
@@ -110,8 +113,8 @@
     function updateTimingDisplay() {
       const [navigation] = performance.getEntriesByType("navigation");
       document.getElementById("ready-state").textContent = document.readyState;
-      document.getElementById("dcl-end").textContent =
-        (navigation?.domContentLoadedEventEnd ?? 0).toFixed(2) + " ms";
+      document.getElementById("dcl-start").textContent =
+        (navigation?.domContentLoadedEventStart ?? 0).toFixed(2) + " ms";
     }
 
     // Track DOMContentLoaded
@@ -122,10 +125,10 @@
 
     // Capture state BEFORE dynamic import
     const [navBefore] = performance.getEntriesByType("navigation");
-    const dclEndBefore = navBefore?.domContentLoadedEventEnd ?? 0;
+    const dclStartBefore = navBefore?.domContentLoadedEventStart ?? 0;
     const readyStateBefore = document.readyState;
 
-    loaderLog(`--- State BEFORE import: readyState="${readyStateBefore}", dclEnd=${dclEndBefore.toFixed(2)} ---`, "detection");
+    loaderLog(`--- State BEFORE import: readyState="${readyStateBefore}", dclStart=${dclStartBefore.toFixed(2)} ---`, "detection");
 
     // Immediately trigger dynamic imports - this happens BEFORE DOMContentLoaded
     loaderLog("--- Starting dynamic imports (before DCL) ---", "sync");
@@ -140,11 +143,11 @@
       updateTimingDisplay();
 
       const resultEl = document.getElementById("detection-result");
-      if (dclEndBefore === 0) {
-        resultEl.textContent = "dclEnd was 0 at import time (correctly detected as before DCL)";
+      if (dclStartBefore === 0) {
+        resultEl.textContent = "dclStart was 0 at import time (correctly detected as before DCL)";
         resultEl.className = "value success";
       } else {
-        resultEl.textContent = "dclEnd was > 0 at import time (unexpected!)";
+        resultEl.textContent = "dclStart was > 0 at import time (unexpected!)";
         resultEl.className = "value warning";
       }
     });

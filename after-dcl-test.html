@@ -65,6 +65,9 @@
       }
     }
   </script>
+
+  <!-- Delay module: imports lodash to slow down DOMContentLoaded -->
+  <script type="module" src="./delay-module.js"></script>
 </head>
 <body>
   <h1>After DOMContentLoaded Test</h1>
@@ -77,7 +80,7 @@
   </div>
   <div id="timing-info">
     <div><span class="label">readyState at import:</span> <span id="ready-state" class="value">—</span></div>
-    <div><span class="label">domContentLoadedEventEnd:</span> <span id="dcl-end" class="value">—</span></div>
+    <div><span class="label">domContentLoadedEventStart:</span> <span id="dcl-start" class="value">—</span></div>
     <div><span class="label">Detection result:</span> <span id="detection-result" class="value">—</span></div>
   </div>
   <div id="log"></div>
@@ -105,19 +108,19 @@
     function updateTimingDisplay() {
       const [navigation] = performance.getEntriesByType("navigation");
       document.getElementById("ready-state").textContent = document.readyState;
-      document.getElementById("dcl-end").textContent =
-        (navigation?.domContentLoadedEventEnd ?? 0).toFixed(2) + " ms";
+      document.getElementById("dcl-start").textContent =
+        (navigation?.domContentLoadedEventStart ?? 0).toFixed(2) + " ms";
     }
 
     // Function to import modules and test detection
     function importModules() {
       const [navigation] = performance.getEntriesByType("navigation");
-      const dclEnd = navigation?.domContentLoadedEventEnd ?? 0;
+      const dclStart = navigation?.domContentLoadedEventStart ?? 0;
       const readyState = document.readyState;
       const resultEl = document.getElementById("detection-result");
 
       updateTimingDisplay();
-      loaderLog(`--- Import triggered: readyState="${readyState}", dclEnd=${dclEnd.toFixed(2)} ---`, "detection");
+      loaderLog(`--- Import triggered: readyState="${readyState}", dclStart=${dclStart.toFixed(2)} ---`, "detection");
       loaderLog("--- Starting dynamic imports ---", "sync");
 
       Promise.all([
@@ -129,11 +132,11 @@
         loaderLog("--- All dynamic imports complete ---", "sync");
         updateTimingDisplay();
 
-        if (dclEnd > 0) {
-          resultEl.textContent = "DOMContentLoaded already fired (correctly detected!)";
+        if (dclStart > 0) {
+          resultEl.textContent = "DOMContentLoaded already started (correctly detected!)";
           resultEl.className = "value success";
         } else {
-          resultEl.textContent = "DOMContentLoaded not yet complete at import time";
+          resultEl.textContent = "DOMContentLoaded not yet started at import time";
           resultEl.className = "value warning";
         }
       });

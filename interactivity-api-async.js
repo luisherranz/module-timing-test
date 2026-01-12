@@ -16,11 +16,11 @@ log("interactivity-api-async init", "sync");
 
 // Get Navigation Timing data
 const [navigation] = performance.getEntriesByType("navigation");
-const dclEnd = navigation?.domContentLoadedEventEnd ?? 0;
+const dclStart = navigation?.domContentLoadedEventStart ?? 0;
 const readyState = document.readyState;
 
 log(`readyState: "${readyState}"`, "sync");
-log(`domContentLoadedEventEnd: ${dclEnd.toFixed(2)} ms`, "sync");
+log(`domContentLoadedEventStart: ${dclStart.toFixed(2)} ms`, "sync");
 
 // The init function that would trigger hydration
 function init() {
@@ -45,14 +45,14 @@ function init() {
 }
 
 // THE SOLUTION: Use Navigation Timing API to detect DOMContentLoaded state
-if (dclEnd > 0) {
-  // DOMContentLoaded has already fired and all handlers have completed
-  log("DETECTED: DOMContentLoaded already fired (dclEnd > 0)", "detection");
+if (dclStart > 0) {
+  // DOMContentLoaded has started or already completed
+  log("DETECTED: DOMContentLoaded already started (dclStart > 0)", "detection");
   log("Calling init() immediately", "detection");
   init();
 } else {
-  // DOMContentLoaded hasn't fired yet - wait for it
-  log("DETECTED: DOMContentLoaded not yet fired (dclEnd === 0)", "detection");
+  // DOMContentLoaded hasn't started yet - wait for it
+  log("DETECTED: DOMContentLoaded not yet started (dclStart === 0)", "detection");
   log("Adding DOMContentLoaded listener", "detection");
   document.addEventListener("DOMContentLoaded", () => {
     log("DOMContentLoaded event received", "dom-event");
@@ -61,7 +61,7 @@ if (dclEnd > 0) {
 }
 
 // Also add a listener to show if DOMContentLoaded fires after this module
-// (it shouldn't if dclEnd > 0)
+// (it shouldn't if dclStart > 0)
 document.addEventListener("DOMContentLoaded", () => {
   log("DOMContentLoaded (secondary listener)", "dom-event");
 });
