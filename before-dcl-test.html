@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Async Module Loading Test</title>
+  <title>Before DOMContentLoaded Test</title>
   <style>
     * { box-sizing: border-box; }
     body {
@@ -30,10 +30,10 @@
       padding: 12px;
       background: #1e3a5f;
       border-radius: 6px;
-      border-left: 4px solid #3498db;
+      border-left: 4px solid #e67e22;
     }
     #timing-info .label { color: #888; }
-    #timing-info .value { color: #3498db; font-weight: bold; }
+    #timing-info .value { color: #e67e22; font-weight: bold; }
     #timing-info .success { color: #2ecc71; }
     #timing-info .warning { color: #e67e22; }
     #log {
@@ -65,15 +65,27 @@
       }
     }
   </script>
+
+  <script>
+    // Detect browser early
+    const ua = navigator.userAgent;
+    let browser = "Unknown";
+    if (ua.includes("Firefox")) browser = "Firefox";
+    else if (ua.includes("Edg/")) browser = "Edge";
+    else if (ua.includes("Chrome")) browser = "Chrome";
+    else if (ua.includes("Safari")) browser = "Safari";
+    if (ua.includes("Mobile")) browser += " (Mobile)";
+    window.__browser = browser + " — " + navigator.platform;
+  </script>
 </head>
 <body>
-  <h1>Async Module Loading Test</h1>
+  <h1>Before DOMContentLoaded Test</h1>
   <div id="info">
     <strong>Browser:</strong> <span id="browser"></span><br>
-    <strong>Test:</strong> Load <code>@wordpress/interactivity</code> AFTER <span style="color:#e74c3c">DOMContentLoaded</span> has fired<br>
-    <strong>Goal:</strong> Verify the Navigation Timing API correctly detects this case<br>
+    <strong>Test:</strong> Load modules BEFORE <span style="color:#e74c3c">DOMContentLoaded</span> fires<br>
+    <strong>Goal:</strong> Verify <code>domContentLoadedEventEnd === 0</code> and detection waits for DCL<br>
     <a href="./index.html" style="color:#3498db">Sync test</a> |
-    <a href="./before-dcl-test.html" style="color:#e67e22">Before DCL test</a>
+    <a href="./async-load-test.html" style="color:#2ecc71">After DCL test</a>
   </div>
   <div id="timing-info">
     <div><span class="label">readyState at import:</span> <span id="ready-state" class="value">—</span></div>
@@ -83,17 +95,10 @@
   <div id="log"></div>
 
   <script>
-    // Detect browser
-    const ua = navigator.userAgent;
-    let browser = "Unknown";
-    if (ua.includes("Firefox")) browser = "Firefox";
-    else if (ua.includes("Edg/")) browser = "Edge";
-    else if (ua.includes("Chrome")) browser = "Chrome";
-    else if (ua.includes("Safari")) browser = "Safari";
-    if (ua.includes("Mobile")) browser += " (Mobile)";
-    document.getElementById("browser").textContent = browser + " — " + navigator.platform;
+    // Set browser info
+    document.getElementById("browser").textContent = window.__browser;
 
-    // Simple log function for the loader
+    // Simple log function
     function loaderLog(msg, type = "") {
       const entry = document.createElement("div");
       entry.className = `log-entry ${type}`;
@@ -109,58 +114,49 @@
         (navigation?.domContentLoadedEventEnd ?? 0).toFixed(2) + " ms";
     }
 
-    // Function to import modules and test detection
-    function importModules() {
-      const [navigation] = performance.getEntriesByType("navigation");
-      const dclEnd = navigation?.domContentLoadedEventEnd ?? 0;
-      const readyState = document.readyState;
-      const resultEl = document.getElementById("detection-result");
-
-      updateTimingDisplay();
-      loaderLog(`--- Import triggered: readyState="${readyState}", dclEnd=${dclEnd.toFixed(2)} ---`, "detection");
-      loaderLog("--- Starting dynamic imports ---", "sync");
-
-      Promise.all([
-        import("./module-a-async.js"),
-        import("./module-c-async.js"),
-        import("./module-e-async.js"),
-        import("./module-f-async.js")
-      ]).then(() => {
-        loaderLog("--- All dynamic imports complete ---", "sync");
-        updateTimingDisplay();
-
-        if (dclEnd > 0) {
-          resultEl.textContent = "DOMContentLoaded already fired (correctly detected!)";
-          resultEl.className = "value success";
-        } else {
-          resultEl.textContent = "DOMContentLoaded not yet complete at import time";
-          resultEl.className = "value warning";
-        }
-      });
-    }
-
     // Track DOMContentLoaded
     document.addEventListener("DOMContentLoaded", () => {
       loaderLog("--- DOMContentLoaded fired ---", "dom-event");
       updateTimingDisplay();
-
-      // Use setTimeout to ensure we're in a new task AFTER DOMContentLoaded completes
-      // This is the realistic scenario: module loaded some time after DCL
-      setTimeout(() => {
-        loaderLog("--- setTimeout callback (after DCL handlers complete) ---", "post-task");
-        updateTimingDisplay();
-        importModules();
-      }, 0);
     });
 
-    // Initial timing display
+    // Capture state BEFORE dynamic import
+    const [navBefore] = performance.getEntriesByType("navigation");
+    const dclEndBefore = navBefore?.domContentLoadedEventEnd ?? 0;
+    const readyStateBefore = document.readyState;
+
+    loaderLog(`--- State BEFORE import: readyState="${readyStateBefore}", dclEnd=${dclEndBefore.toFixed(2)} ---`, "detection");
+
+    // Immediately trigger dynamic imports - this happens BEFORE DOMContentLoaded
+    loaderLog("--- Starting dynamic imports (before DCL) ---", "sync");
+
+    Promise.all([
+      import("./module-a-async.js"),
+      import("./module-c-async.js"),
+      import("./module-e-async.js"),
+      import("./module-f-async.js")
+    ]).then(() => {
+      loaderLog("--- All dynamic imports complete ---", "sync");
+      updateTimingDisplay();
+
+      const resultEl = document.getElementById("detection-result");
+      if (dclEndBefore === 0) {
+        resultEl.textContent = "dclEnd was 0 at import time (correctly detected as before DCL)";
+        resultEl.className = "value success";
+      } else {
+        resultEl.textContent = "dclEnd was > 0 at import time (unexpected!)";
+        resultEl.className = "value warning";
+      }
+    });
+
+    // Initial display
     updateTimingDisplay();
   </script>
 
   <!--
-    NOTE: No module scripts here!
-    Modules are loaded dynamically after DOMContentLoaded fires.
-    This tests the scenario where interactivity-api loads AFTER DOMContentLoaded.
+    NOTE: No module scripts in <head>!
+    Modules are loaded dynamically via inline script BEFORE DOMContentLoaded fires.
+    This tests the scenario where readyState is 'interactive' but DCL hasn't fired yet.
   -->
 </body>
 </html>
