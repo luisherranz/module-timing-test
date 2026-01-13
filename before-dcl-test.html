@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Before DOMContentLoaded Test</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 20px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    h1 { font-size: 1.2em; margin-bottom: 0.5em; }
+    #info {
+      font-size: 0.85em;
+      color: #888;
+      margin-bottom: 1em;
+      padding: 10px;
+      background: #16213e;
+      border-radius: 6px;
+    }
+    #timing-info {
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 0.85em;
+      margin-bottom: 1em;
+      padding: 12px;
+      background: #1e3a5f;
+      border-radius: 6px;
+      border-left: 4px solid #e67e22;
+    }
+    #timing-info .label { color: #888; }
+    #timing-info .value { color: #e67e22; font-weight: bold; }
+    #timing-info .success { color: #2ecc71; }
+    #timing-info .warning { color: #e67e22; }
+    #log {
+      font-family: "SF Mono", Consolas, monospace;
+      font-size: 0.9em;
+      line-height: 1.6;
+      background: #0f0f1a;
+      padding: 15px;
+      border-radius: 8px;
+      min-height: 300px;
+    }
+    .log-entry {
+      padding: 4px 8px;
+      border-radius: 4px;
+      margin: 2px 0;
+    }
+    .log-entry:nth-child(odd) { background: rgba(255,255,255,0.03); }
+    .sync { color: #3498db; }
+    .tla { color: #e67e22; }
+    .dom-event { color: #e74c3c; font-weight: bold; }
+    .post-task { color: #9b59b6; }
+    .detection { color: #2ecc71; font-weight: bold; }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "interactivity-api": "./interactivity-api-async.js"
+      }
+    }
+  </script>
+
+  <!-- Delay module: imports lodash to slow down DOMContentLoaded -->
+  <script type="module" src="./delay-module.js"></script>
+
+  <script>
+    // Detect browser early
+    const ua = navigator.userAgent;
+    let browser = "Unknown";
+    if (ua.includes("Firefox")) browser = "Firefox";
+    else if (ua.includes("Edg/")) browser = "Edge";
+    else if (ua.includes("Chrome")) browser = "Chrome";
+    else if (ua.includes("Safari")) browser = "Safari";
+    if (ua.includes("Mobile")) browser += " (Mobile)";
+    window.__browser = browser + " — " + navigator.platform;
+  </script>
+</head>
+<body>
+  <h1>Before DOMContentLoaded Test</h1>
+  <div id="info">
+    <strong>Browser:</strong> <span id="browser"></span><br>
+    <strong>Test:</strong> Load modules BEFORE <span style="color:#e74c3c">DOMContentLoaded</span> fires<br>
+    <strong>Goal:</strong> Verify <code>domContentLoadedEventStart === 0</code> and detection waits for DCL<br>
+    <a href="./index.html" style="color:#3498db">Sync test</a> |
+    <a href="./after-dcl-test.html" style="color:#2ecc71">After DCL test</a>
+  </div>
+  <div id="timing-info">
+    <div><span class="label">readyState at import:</span> <span id="ready-state" class="value">—</span></div>
+    <div><span class="label">domContentLoadedEventStart:</span> <span id="dcl-start" class="value">—</span></div>
+    <div><span class="label">Detection result:</span> <span id="detection-result" class="value">—</span></div>
+  </div>
+  <div id="log"></div>
+
+  <script>
+    // Set browser info
+    document.getElementById("browser").textContent = window.__browser;
+
+    // Simple log function
+    function loaderLog(msg, type = "") {
+      const entry = document.createElement("div");
+      entry.className = `log-entry ${type}`;
+      entry.textContent = msg;
+      document.getElementById("log").appendChild(entry);
+    }
+
+    // Function to update timing display
+    function updateTimingDisplay() {
+      const [navigation] = performance.getEntriesByType("navigation");
+      document.getElementById("ready-state").textContent = document.readyState;
+      document.getElementById("dcl-start").textContent =
+        (navigation?.domContentLoadedEventStart ?? 0).toFixed(2) + " ms";
+    }
+
+    // Track DOMContentLoaded
+    document.addEventListener("DOMContentLoaded", () => {
+      loaderLog("--- DOMContentLoaded fired ---", "dom-event");
+      updateTimingDisplay();
+    });
+
+    // Capture state BEFORE dynamic import
+    const [navBefore] = performance.getEntriesByType("navigation");
+    const dclStartBefore = navBefore?.domContentLoadedEventStart ?? 0;
+    const readyStateBefore = document.readyState;
+
+    loaderLog(`--- State BEFORE import: readyState="${readyStateBefore}", dclStart=${dclStartBefore.toFixed(2)} ---`, "detection");
+
+    // Immediately trigger dynamic imports - this happens BEFORE DOMContentLoaded
+    loaderLog("--- Starting dynamic imports (before DCL) ---", "sync");
+
+    Promise.all([
+      import("./module-a-async.js"),
+      import("./module-c-async.js"),
+      import("./module-e-async.js"),
+      import("./module-f-async.js")
+    ]).then(() => {
+      loaderLog("--- All dynamic imports complete ---", "sync");
+      updateTimingDisplay();
+
+      const resultEl = document.getElementById("detection-result");
+      if (dclStartBefore === 0) {
+        resultEl.textContent = "dclStart was 0 at import time (correctly detected as before DCL)";
+        resultEl.className = "value success";
+      } else {
+        resultEl.textContent = "dclStart was > 0 at import time (unexpected!)";
+        resultEl.className = "value warning";
+      }
+    });
+
+    // Initial display
+    updateTimingDisplay();
+  </script>
+
+  <!--
+    NOTE: No module scripts in <head>!
+    Modules are loaded dynamically via inline script BEFORE DOMContentLoaded fires.
+    This tests the scenario where readyState is 'interactive' but DCL hasn't fired yet.
+  -->
+</body>
+</html>
